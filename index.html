@@ -40,47 +40,15 @@
       display: none;
       background: #f2f2f2;
     }
-    .btn-group {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
+    .btn-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; }
     button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      background: var(--primary);
-      color: white;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background 0.3s;
+      padding: 10px 20px; border: none; border-radius: 8px; background: var(--primary); color: #fff; font-size: 1rem; cursor: pointer; transition: background 0.3s;
     }
-    button:hover {
-      background: var(--primary-dark);
-    }
-    #productData {
-      display: none;
-      background: #f4f9ff;
-      padding: 16px;
-      border-radius: 14px;
-    }
+    button:hover { background: var(--primary-dark); }
+    #productData { display: none; background: #f4f9ff; padding: 16px; border-radius: 14px; }
     #productData p { margin: 8px 0 4px; color: #444; font-weight: 600; }
-    input {
-      width: 92%;
-      padding: 8px 12px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      margin-bottom: 10px;
-      text-align: center;
-      font-family: inherit;
-    }
-    #downloadLink {
-      display: none;
-      margin-top: 20px;
-      color: var(--primary-dark);
-      text-decoration: underline;
-    }
+    input { width: 92%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 10px; text-align: center; font-family: inherit; }
+    #downloadLink { display: none; margin-top: 20px; color: var(--primary-dark); text-decoration: underline; }
   </style>
   <script src="./xlsx.full.min.js"></script>
 </head>
@@ -91,9 +59,10 @@
     <canvas id="canvas" style="display:none;"></canvas>
     <img id="preview" alt="معاينة الصورة" />
     <div class="btn-group">
-      <button id="startCamera">تشغيل الكاميرا / التقاط جديد</button>
+      <button id="startCamera">تشغيل الكاميرا</button>
+      <button id="capture" style="display:none;">التقاط الصورة</button>
     </div>
-    <small class="version">version-006</small>
+    <small class="version">version-007</small>
 
     <div id="productData">
       <p>الوصف</p><input id="description" type="text" />
@@ -105,15 +74,14 @@
         <button id="confirm">حفظ</button>
       </div>
     </div>
-
-    <button id="finish" style="display:none;">إنهاء وحفظ Excel</button>
-    <a id="downloadLink" href="#">تحميل ملف Excel</a>
   </div>
+
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const preview = document.getElementById('preview');
     const startBtn = document.getElementById('startCamera');
+    const captureBtn = document.getElementById('capture');
     const productDataDiv = document.getElementById('productData');
     const descriptionInput = document.getElementById('description');
     const colorInput = document.getElementById('color');
@@ -121,11 +89,17 @@
     const brandInput = document.getElementById('brand');
     const quantityInput = document.getElementById('quantity');
     const confirmBtn = document.getElementById('confirm');
-    const finishBtn = document.getElementById('finish');
-    const downloadLink = document.getElementById('downloadLink');
 
     let stream;
     const products = [];
+
+    function resetForNextProduct() {
+      preview.style.display = 'none';
+      productDataDiv.style.display = 'none';
+      captureBtn.style.display = 'none';
+      startBtn.style.display = 'inline-block';
+      startBtn.textContent = 'إضافة منتج جديد';
+    }
 
     startBtn.addEventListener('click', async () => {
       try {
@@ -134,23 +108,37 @@
           video.srcObject = stream;
         }
         video.style.display = 'block';
-        productDataDiv.style.display = 'none';
-        preview.style.display = 'none';
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-
-        preview.src = canvas.toDataURL('image/jpeg');
-        preview.style.display = 'block';
-        video.style.display = 'none';
-        productDataDiv.style.display = 'block';
+        captureBtn.style.display = 'inline-block';
+        startBtn.style.display = 'none';
       } catch (err) {
         alert('تعذر تشغيل الكاميرا: ' + err.message);
       }
     });
+
+    captureBtn.addEventListener('click', () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      preview.src = canvas.toDataURL('image/jpeg');
+      preview.style.display = 'block';
+      video.style.display = 'none';
+      productDataDiv.style.display = 'block';
+    });
+
+    function downloadExcel() {
+      const ws = XLSX.utils.json_to_sheet(products);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Products');
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'products.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
 
     confirmBtn.addEventListener('click', () => {
       products.push({
@@ -161,20 +149,8 @@
         'الكمية': quantityInput.value,
         'الصورة': preview.src
       });
-      productDataDiv.style.display = 'none';
-      finishBtn.style.display = 'inline-block';
-    });
-
-    finishBtn.addEventListener('click', () => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      const ws = XLSX.utils.json_to_sheet(products);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Products');
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/octet-stream' });
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = 'products.xlsx';
-      downloadLink.style.display = 'block';
+      downloadExcel();
+      resetForNextProduct();
     });
   </script>
 </body>
