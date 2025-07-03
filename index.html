@@ -33,7 +33,7 @@
       <button id="startCamera">تشغيل الكاميرا</button>
       <button id="capture" style="display:none">التقاط الصورة</button>
     </div>
-    <small class="version">version-009</small>
+    <small class="version">version-010</small>
 
     <div id="productData">
       <p>الوصف</p><input id="description" type="text" />
@@ -62,14 +62,13 @@ const brandInput=document.getElementById('brand');
 const qtyInput=document.getElementById('quantity');
 const saveNextBtn=document.getElementById('saveNext');
 const saveFinishBtn=document.getElementById('saveFinish');
-const cameraButtons=document.getElementById('cameraButtons');
 
 let stream;const products=[];
 
 async function activateCamera(){ try{ if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}); video.srcObject=stream;} video.style.display='block'; captureBtn.style.display='inline-block'; startBtn.style.display='none'; }catch(e){alert('تعذر تشغيل الكاميرا: '+e.message);} }
 
-function resetFields(){descInput.value=colorInput.value=sizeInput.value=brandInput.value="";qtyInput.value=1;}
-function resetForNext(){preview.style.display='none';productDiv.style.display='none';captureBtn.style.display='none';startBtn.style.display='inline-block';startBtn.textContent='إضافة منتج جديد';video.style.display='none';resetFields();}
+function clearForm(){descInput.value=colorInput.value=sizeInput.value=brandInput.value="";qtyInput.value=1;}
+function resetForNext(){preview.style.display='none';productDiv.style.display='none';captureBtn.style.display='none';startBtn.style.display='inline-block';startBtn.textContent='إضافة منتج جديد';video.style.display='none';clearForm();}
 
 startBtn.addEventListener('click',activateCamera);
 
@@ -77,7 +76,7 @@ captureBtn.addEventListener('click',()=>{canvas.width=video.videoWidth;canvas.he
 
 function pushProduct(){products.push({'الوصف':descInput.value,'اللون':colorInput.value,'الحجم':sizeInput.value,'العلامة التجارية':brandInput.value,'الكمية':qtyInput.value,'الصورة':preview.src});}
 
-function downloadExcel(){const ws=XLSX.utils.json_to_sheet(products);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Products');const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});const blob=new Blob([wbout],{type:'application/octet-stream'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='products.xlsx';document.body.appendChild(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove();},0);}
+function downloadExcel(){if(products.length===0){alert('لا توجد منتجات مسجلة');return;}const ws=XLSX.utils.json_to_sheet(products);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Products');XLSX.writeFile(wb,'products.xlsx');}
 
 saveNextBtn.addEventListener('click',async()=>{pushProduct();resetForNext();await activateCamera();});
 
