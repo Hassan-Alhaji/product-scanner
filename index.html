@@ -3,72 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تطبيق تصوير وتسجيل المنتجات</title>
+    <title>تطبيق مسح المنتجات</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             text-align: center;
-            padding: 20px;
-            background-color: #f0f0f0;
+            padding: 10px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            margin: 0;
         }
-        #video, #canvas {
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            overflow: hidden;
+        }
+        #video {
+            width: 80%;
+            max-width: 300px;
+            border-radius: 10px;
+            display: none;
+        }
+        #canvas {
             display: none;
         }
         #preview {
-            max-width: 100%;
+            max-width: 80%;
             height: auto;
+            border-radius: 10px;
             margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         button {
             padding: 10px 20px;
             margin: 5px;
-            background-color: #4CAF50;
+            background-color: #4a90e2;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            transition: background-color 0.3s;
         }
         button:hover {
-            background-color: #45a049;
+            background-color: #357ab7;
         }
         #productData {
             margin-top: 20px;
-            padding: 10px;
-            background-color: white;
-            border-radius: 5px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            display: none;
         }
         input {
             margin: 5px;
-            padding: 5px;
-            width: 80%;
+            padding: 8px;
+            width: 90%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
         }
         #downloadLink {
             display: none;
             margin-top: 20px;
         }
+        .btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
-    <h2>تطبيق تصوير وتسجيل المنتجات</h2>
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
-    <img id="preview" alt="معاينة الصورة">
-    <button id="startCamera">تشغيل الكاميرا</button>
-    <button id="capture" style="display: none;">التقاط الصورة</button>
-    <div id="productData" style="display: none;">
-        <h3>بيانات المنتج</h3>
-        <p>الوصف: <input id="description" type="text"></p>
-        <p>اللون: <input id="color" type="text"></p>
-        <p>الحجم: <input id="size" type="text"></p>
-        <p>العلامة التجارية: <input id="brand" type="text"></p>
-        <p>هل تريد تعديل البيانات؟</p>
-        <button id="confirm">لا، حفظ</button>
-        <button id="edit">نعم، تعديل</button>
+    <div class="container">
+        <h2 style="color: #333; font-size: 1.5em;">تطبيق مسح المنتجات</h2>
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <img id="preview" alt="معاينة الصورة">
+        <div class="btn-group">
+            <button id="startCamera">تشغيل الكاميرا</button>
+            <button id="capture" style="display: none;">التقاط الصورة</button>
+            <button id="retake" style="display: none;">إعادة التصوير</button>
+        </div>
+        <div id="productData" style="display: none;">
+            <h3 style="color: #444;">بيانات المنتج</h3>
+            <p>الوصف: <input id="description" type="text" disabled></p>
+            <p>اللون: <input id="color" type="text" disabled></p>
+            <p>الحجم: <input id="size" type="text" disabled></p>
+            <p>العلامة التجارية: <input id="brand" type="text" disabled></p>
+            <p>الكمية: <input id="quantity" type="number" min="1" value="1" disabled></p>
+            <div class="btn-group">
+                <button id="confirm">لا، حفظ</button>
+                <button id="edit">نعم، تعديل</button>
+            </div>
+        </div>
+        <button id="nextProduct" style="display: none;">المنتج التالي</button>
+        <button id="finish" style="display: none;">إنهاء وحفظ Excel</button>
+        <a id="downloadLink" href="#">تحميل ملف Excel</a>
     </div>
-    <button id="nextProduct" style="display: none;">المنتج التالي</button>
-    <button id="finish" style="display: none;">إنهاء وحفظ Excel</button>
-    <a id="downloadLink" href="#">تحميل ملف Excel</a>
 
     <script>
         const video = document.getElementById('video');
@@ -76,11 +112,13 @@
         const preview = document.getElementById('preview');
         const startCameraBtn = document.getElementById('startCamera');
         const captureBtn = document.getElementById('capture');
+        const retakeBtn = document.getElementById('retake');
         const productDataDiv = document.getElementById('productData');
         const descriptionInput = document.getElementById('description');
         const colorInput = document.getElementById('color');
         const sizeInput = document.getElementById('size');
         const brandInput = document.getElementById('brand');
+        const quantityInput = document.getElementById('quantity');
         const confirmBtn = document.getElementById('confirm');
         const editBtn = document.getElementById('edit');
         const nextProductBtn = document.getElementById('nextProduct');
@@ -105,21 +143,42 @@
 
         // التقاط الصورة
         captureBtn.addEventListener('click', () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
+            canvas.width = video.videoWidth * 0.8;
+            canvas.height = video.videoHeight * 0.8;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
             preview.src = canvas.toDataURL('image/jpeg');
             preview.style.display = 'block';
             video.style.display = 'none';
             captureBtn.style.display = 'none';
+            retakeBtn.style.display = 'inline-block';
+            analyzeImage();
             productDataDiv.style.display = 'block';
-
-            // محاكاة تحليل الصورة
-            descriptionInput.value = 'ملف مستندات';
-            colorInput.value = 'أسود وأبيض';
-            sizeInput.value = '11 إنش';
-            brandInput.value = 'روكو';
         });
+
+        // إعادة التصوير
+        retakeBtn.addEventListener('click', () => {
+            preview.style.display = 'none';
+            retakeBtn.style.display = 'none';
+            productDataDiv.style.display = 'none';
+            video.style.display = 'block';
+            captureBtn.style.display = 'inline-block';
+        });
+
+        // تحليل الصورة (محاكاة بسيطة)
+        function analyzeImage() {
+            const mockAnalysis = {
+                'document': { description: 'ملف مستندات', color: 'أسود وأبيض', size: '11 إنش', brand: 'روكو' },
+                'book': { description: 'كتاب', color: 'أبيض', size: '10 إنش', brand: 'بنجو' },
+                'phone': { description: 'هاتف', color: 'أسود', size: '6 إنش', brand: 'سامسونج' }
+            };
+            const productType = Object.keys(mockAnalysis)[Math.floor(Math.random() * Object.keys(mockAnalysis).length)];
+            const data = mockAnalysis[productType];
+            descriptionInput.value = data.description;
+            colorInput.value = data.color;
+            sizeInput.value = data.size;
+            brandInput.value = data.brand;
+            quantityInput.value = 1;
+        }
 
         // تأكيد البيانات
         confirmBtn.addEventListener('click', () => {
@@ -127,6 +186,7 @@
             productDataDiv.style.display = 'none';
             nextProductBtn.style.display = 'inline-block';
             finishBtn.style.display = 'inline-block';
+            retakeBtn.style.display = 'none';
         });
 
         // تعديل البيانات
@@ -135,6 +195,7 @@
             colorInput.disabled = false;
             sizeInput.disabled = false;
             brandInput.disabled = false;
+            quantityInput.disabled = false;
         });
 
         // الانتقال للمنتج التالي
@@ -147,6 +208,7 @@
             colorInput.disabled = true;
             sizeInput.disabled = true;
             brandInput.disabled = true;
+            quantityInput.disabled = true;
         });
 
         // إنهاء وحفظ Excel
@@ -164,13 +226,16 @@
             downloadLink.style.display = 'block';
         });
 
-        // حفظ بيانات المنتج
+        // حفظ بيانات المنتج مع الصورة
         function saveProduct() {
+            const imageDataUrl = preview.src; // بيانات Base64 للصورة
             products.push({
                 'الوصف': descriptionInput.value,
                 'اللون': colorInput.value,
                 'الحجم': sizeInput.value,
-                'العلامة التجارية': brandInput.value
+                'العلامة التجارية': brandInput.value,
+                'الكمية': quantityInput.value,
+                'الصورة': imageDataUrl // إضافة رابط الصورة كـ Base64
             });
         }
     </script>
