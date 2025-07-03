@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Smart Product Scanner</title>
+  <title>SAMF Product Scanner</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     :root { --primary:#4a90e2; --primary-dark:#3a7ac6; }
@@ -31,7 +31,7 @@
 </head>
 <body>
   <div class="container">
-    <h2>Smart Product Scanner</h2>
+    <h2>SAMF Product Scanner</h2>
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none"></canvas>
     <img id="preview" alt="Image Preview" />
@@ -40,7 +40,7 @@
       <button id="startCamera">Start Camera</button>
       <button id="capture" style="display:none">Capture Image</button>
     </div>
-    <small>version-013</small>
+    <small>version-017</small>
 
     <div id="productData">
       <p>Description</p><input id="description" type="text" />
@@ -61,7 +61,6 @@
   </div>
 
 <script>
-/* عناصر الصفحة */
 const video         = document.getElementById('video');
 const canvas        = document.getElementById('canvas');
 const preview       = document.getElementById('preview');
@@ -82,7 +81,16 @@ let stream;
 const products = [];
 let quantity = 1;
 
-/* تشغيل الكاميرا */
+/* معرف فريد لكل جلسة عامل */
+const sessionID = `worker_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+/* توليد طابع زمني */
+function timestamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
 async function activateCamera() {
   try {
     if (!stream) {
@@ -97,14 +105,12 @@ async function activateCamera() {
   }
 }
 
-/* تفريغ الحقول */
 function clearForm() {
   descInput.value = colorInput.value = sizeInput.value = brandInput.value = '';
   quantity = 1;
   qtyDisplay.textContent = quantity;
 }
 
-/* إعادة الضبط لمنتج جديد */
 function resetForNext() {
   preview.style.display = 'none';
   productDiv.style.display = 'none';
@@ -117,7 +123,6 @@ function resetForNext() {
 
 startBtn.addEventListener('click', activateCamera);
 
-/* التقاط الصورة */
 captureBtn.addEventListener('click', () => {
   canvas.width  = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -128,7 +133,6 @@ captureBtn.addEventListener('click', () => {
   productDiv.style.display = 'block';
 });
 
-/* التحكم في الكمية */
 decreaseQtyBtn.addEventListener('click', () => {
   if (quantity > 1) {
     quantity--;
@@ -140,10 +144,11 @@ increaseQtyBtn.addEventListener('click', () => {
   qtyDisplay.textContent = quantity;
 });
 
-/* إضافة المنتج إلى المصفوفة */
+/* حفظ المنتج */
 function pushProduct() {
   const imgData = preview.src.split(',')[1];
-  const imgName = `img_${products.length + 1}.jpg`;
+  const imgName = `${sessionID}_img_${products.length + 1}.jpg`;
+
   products.push({
     'Description': descInput.value,
     'Color'      : colorInput.value,
@@ -155,27 +160,22 @@ function pushProduct() {
   });
 }
 
-/* بناء مصنف Excel */
+/* إنشاء Excel */
 function buildWorkBook() {
   const rowsForExcel = products.map(({ __imgData, ...rest }) => rest);
   const ws = XLSX.utils.json_to_sheet(rowsForExcel);
+
   rowsForExcel.forEach((row, i) => {
     const cell = XLSX.utils.encode_cell({ r: i + 1, c: 5 }); // العمود السادس
     ws[cell] = { t: 's', v: 'عرض', l: { Target: `images/${row.ImageFile}`, Tooltip: 'فتح الصورة' } };
   });
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Products');
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 }
 
-/* ❶ دالة مساعدة لإنتاج طابع تاريخ/وقت بصيغة YYYYMMDD_HHMMSS */
-function timestamp() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2,'0');
-  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-}
-
-/* تنزيل ملف ZIP */
+/* تحميل ملف ZIP */
 function downloadPackage() {
   if (!products.length) { alert('No products recorded'); return; }
 
@@ -186,12 +186,12 @@ function downloadPackage() {
   products.forEach(p => zip.file(`images/${p.ImageFile}`, p.__imgData, { base64: true }));
 
   zip.generateAsync({ type: 'blob' }).then(blob => {
-    /* ❷ اسم الملف يحتوي الطابع الزمني */
-    saveAs(blob, `products_${timestamp()}.zip`);
+    const filename = `products_${sessionID}_${timestamp()}.zip`;
+    saveAs(blob, filename);
   });
 }
 
-/* حفظ وإضافة منتج آخر */
+/* حفظ وإضافة */
 saveNextBtn.addEventListener('click', async () => {
   pushProduct();
   resetForNext();
