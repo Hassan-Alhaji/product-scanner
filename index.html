@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق تصوير وتسجيل المنتجات</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        #video, #canvas {
+            display: none;
+        }
+        #preview {
+            max-width: 100%;
+            height: auto;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #productData {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 5px;
+        }
+        input {
+            margin: 5px;
+            padding: 5px;
+            width: 80%;
+        }
+        #downloadLink {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h2>تطبيق تصوير وتسجيل المنتجات</h2>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <img id="preview" alt="معاينة الصورة">
+    <button id="startCamera">تشغيل الكاميرا</button>
+    <button id="capture" style="display: none;">التقاط الصورة</button>
+    <div id="productData" style="display: none;">
+        <h3>بيانات المنتج</h3>
+        <p>الوصف: <input id="description" type="text"></p>
+        <p>اللون: <input id="color" type="text"></p>
+        <p>الحجم: <input id="size" type="text"></p>
+        <p>العلامة التجارية: <input id="brand" type="text"></p>
+        <p>هل تريد تعديل البيانات؟</p>
+        <button id="confirm">لا، حفظ</button>
+        <button id="edit">نعم، تعديل</button>
+    </div>
+    <button id="nextProduct" style="display: none;">المنتج التالي</button>
+    <button id="finish" style="display: none;">إنهاء وحفظ Excel</button>
+    <a id="downloadLink" href="#">تحميل ملف Excel</a>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const preview = document.getElementById('preview');
+        const startCameraBtn = document.getElementById('startCamera');
+        const captureBtn = document.getElementById('capture');
+        const productDataDiv = document.getElementById('productData');
+        const descriptionInput = document.getElementById('description');
+        const colorInput = document.getElementById('color');
+        const sizeInput = document.getElementById('size');
+        const brandInput = document.getElementById('brand');
+        const confirmBtn = document.getElementById('confirm');
+        const editBtn = document.getElementById('edit');
+        const nextProductBtn = document.getElementById('nextProduct');
+        const finishBtn = document.getElementById('finish');
+        const downloadLink = document.getElementById('downloadLink');
+
+        let stream;
+        let products = [];
+
+        // تشغيل الكاميرا
+        startCameraBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                startCameraBtn.style.display = 'none';
+                captureBtn.style.display = 'inline-block';
+            } catch (err) {
+                alert('خطأ في تشغيل الكاميرا: ' + err.message);
+            }
+        });
+
+        // التقاط الصورة
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            preview.src = canvas.toDataURL('image/jpeg');
+            preview.style.display = 'block';
+            video.style.display = 'none';
+            captureBtn.style.display = 'none';
+            productDataDiv.style.display = 'block';
+
+            // محاكاة تحليل الصورة
+            descriptionInput.value = 'ملف مستندات';
+            colorInput.value = 'أسود وأبيض';
+            sizeInput.value = '11 إنش';
+            brandInput.value = 'روكو';
+        });
+
+        // تأكيد البيانات
+        confirmBtn.addEventListener('click', () => {
+            saveProduct();
+            productDataDiv.style.display = 'none';
+            nextProductBtn.style.display = 'inline-block';
+            finishBtn.style.display = 'inline-block';
+        });
+
+        // تعديل البيانات
+        editBtn.addEventListener('click', () => {
+            descriptionInput.disabled = false;
+            colorInput.disabled = false;
+            sizeInput.disabled = false;
+            brandInput.disabled = false;
+        });
+
+        // الانتقال للمنتج التالي
+        nextProductBtn.addEventListener('click', () => {
+            preview.style.display = 'none';
+            nextProductBtn.style.display = 'none';
+            finishBtn.style.display = 'none';
+            startCameraBtn.style.display = 'inline-block';
+            descriptionInput.disabled = true;
+            colorInput.disabled = true;
+            sizeInput.disabled = true;
+            brandInput.disabled = true;
+        });
+
+        // إنهاء وحفظ Excel
+        finishBtn.addEventListener('click', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            const ws = XLSX.utils.json_to_sheet(products);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Products');
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/octet-stream' });
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = 'products.xlsx';
+            downloadLink.style.display = 'block';
+        });
+
+        // حفظ بيانات المنتج
+        function saveProduct() {
+            products.push({
+                'الوصف': descriptionInput.value,
+                'اللون': colorInput.value,
+                'الحجم': sizeInput.value,
+                'العلامة التجارية': brandInput.value
+            });
+        }
+    </script>
+</body>
+</html>
