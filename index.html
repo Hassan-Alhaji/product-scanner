@@ -29,11 +29,11 @@
     <canvas id="canvas" style="display:none"></canvas>
     <img id="preview" alt="معاينة الصورة" />
 
-    <div class="btn-group">
+    <div class="btn-group" id="cameraButtons">
       <button id="startCamera">تشغيل الكاميرا</button>
       <button id="capture" style="display:none">التقاط الصورة</button>
     </div>
-    <small class="version">version-008</small>
+    <small class="version">version-009</small>
 
     <div id="productData">
       <p>الوصف</p><input id="description" type="text" />
@@ -55,29 +55,33 @@ const preview=document.getElementById('preview');
 const startBtn=document.getElementById('startCamera');
 const captureBtn=document.getElementById('capture');
 const productDiv=document.getElementById('productData');
-const descriptionInput=document.getElementById('description');
+const descInput=document.getElementById('description');
 const colorInput=document.getElementById('color');
 const sizeInput=document.getElementById('size');
 const brandInput=document.getElementById('brand');
 const qtyInput=document.getElementById('quantity');
 const saveNextBtn=document.getElementById('saveNext');
 const saveFinishBtn=document.getElementById('saveFinish');
+const cameraButtons=document.getElementById('cameraButtons');
 
 let stream;const products=[];
 
-function resetUI(){preview.style.display='none';productDiv.style.display='none';captureBtn.style.display='none';startBtn.style.display='inline-block';startBtn.textContent='إضافة منتج جديد';video.style.display='none';}
+async function activateCamera(){ try{ if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}); video.srcObject=stream;} video.style.display='block'; captureBtn.style.display='inline-block'; startBtn.style.display='none'; }catch(e){alert('تعذر تشغيل الكاميرا: '+e.message);} }
 
-startBtn.addEventListener('click',async()=>{try{if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});video.srcObject=stream;}video.style.display='block';captureBtn.style.display='inline-block';startBtn.style.display='none';}catch(e){alert('تعذر تشغيل الكاميرا: '+e.message);}});
+function resetFields(){descInput.value=colorInput.value=sizeInput.value=brandInput.value="";qtyInput.value=1;}
+function resetForNext(){preview.style.display='none';productDiv.style.display='none';captureBtn.style.display='none';startBtn.style.display='inline-block';startBtn.textContent='إضافة منتج جديد';video.style.display='none';resetFields();}
 
-captureBtn.addEventListener('click',()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;const ctx=canvas.getContext('2d');ctx.drawImage(video,0,0);preview.src=canvas.toDataURL('image/jpeg');preview.style.display='block';video.style.display='none';productDiv.style.display='block';});
+startBtn.addEventListener('click',activateCamera);
 
-function pushProduct(){products.push({'الوصف':descriptionInput.value,'اللون':colorInput.value,'الحجم':sizeInput.value,'العلامة التجارية':brandInput.value,'الكمية':qtyInput.value,'الصورة':preview.src});}
+captureBtn.addEventListener('click',()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);preview.src=canvas.toDataURL('image/jpeg');preview.style.display='block';video.style.display='none';productDiv.style.display='block';});
 
-function downloadExcel(){const ws=XLSX.utils.json_to_sheet(products);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Products');const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});const blob=new Blob([wbout],{type:'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='products.xlsx';a.click();}
+function pushProduct(){products.push({'الوصف':descInput.value,'اللون':colorInput.value,'الحجم':sizeInput.value,'العلامة التجارية':brandInput.value,'الكمية':qtyInput.value,'الصورة':preview.src});}
 
-saveNextBtn.addEventListener('click',()=>{pushProduct();resetUI();});
+function downloadExcel(){const ws=XLSX.utils.json_to_sheet(products);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Products');const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});const blob=new Blob([wbout],{type:'application/octet-stream'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='products.xlsx';document.body.appendChild(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove();},0);}
 
-saveFinishBtn.addEventListener('click',()=>{pushProduct();if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}downloadExcel();resetUI();});
+saveNextBtn.addEventListener('click',async()=>{pushProduct();resetForNext();await activateCamera();});
+
+saveFinishBtn.addEventListener('click',()=>{pushProduct();if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}downloadExcel();resetForNext();});
 </script>
 </body>
 </html>
