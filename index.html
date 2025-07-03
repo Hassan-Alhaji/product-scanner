@@ -24,6 +24,8 @@
     .quantity-control span{font-size:1rem;font-weight:600;width:50px;text-align:center}
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -36,7 +38,7 @@
       <button id="startCamera">Start Camera</button>
       <button id="capture" style="display:none">Capture Image</button>
     </div>
-    <small>version-015</small>
+    <small>version-016</small>
 
     <div id="productData">
       <p>Description</p><input id="description" type="text" />
@@ -132,35 +134,51 @@ increaseQtyBtn.addEventListener('click', () => {
 });
 
 function pushProduct() {
+  const imgData = preview.src.split(',')[1];
+  const imgName = `img_${products.length + 1}.jpg`;
+
   products.push({
     'Description': descInput.value,
     'Color'      : colorInput.value,
     'Size'       : sizeInput.value,
     'Brand'      : brandInput.value,
     'Quantity'   : quantity,
-    'ImageLink'  : preview.src  // <-- رابط الصورة
+    'ImageFile'  : imgName,
+    '__imgData'  : imgData
   });
 }
 
-function downloadExcel() {
-  if (products.length === 0) {
-    alert('No products recorded');
-    return;
-  }
+function buildWorkBook() {
+  const rowsForExcel = products.map(({ __imgData, ...rest }) => rest);
+  const ws = XLSX.utils.json_to_sheet(rowsForExcel);
 
-  /*  تحويل البيانات للورقة بما فيها رابط الصورة */
-  const ws = XLSX.utils.json_to_sheet(products);
-
-  /*  وضع الروابط كـ Hyperlink لتسهيل فتحها من الإكسل */
-  products.forEach((p, idx) => {
-    const cellAddress = XLSX.utils.encode_cell({ r: idx + 1, c: 6 }); // الصف +1 لعنوان الجدول، العمود السابع (F = 5, G = 6)
-    if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: 'Image' };
-    ws[cellAddress].l = { Target: p.ImageLink, Tooltip: 'Open captured image' };
+  rowsForExcel.forEach((row, i) => {
+    const cell = XLSX.utils.encode_cell({ r: i + 1, c: 5 }); // العمود السادس
+    ws[cell] = { t: 's', v: 'عرض', l: { Target: `images/${row.ImageFile}`, Tooltip: 'فتح الصورة' } };
   });
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Products');
-  XLSX.writeFile(wb, 'products.xlsx');
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+}
+
+function downloadPackage() {
+  if (!products.length) {
+    alert('No products recorded');
+    return;
+  }
+
+  const wbData = buildWorkBook();
+  const zip = new JSZip();
+  zip.file('products.xlsx', wbData);
+
+  products.forEach(p => {
+    zip.file(`images/${p.ImageFile}`, p.__imgData, { base64: true });
+  });
+
+  zip.generateAsync({ type: 'blob' }).then(blob => {
+    saveAs(blob, 'products_with_images.zip');
+  });
 }
 
 saveNextBtn.addEventListener('click', async () => {
@@ -170,17 +188,13 @@ saveNextBtn.addEventListener('click', async () => {
 });
 
 saveFinishBtn.addEventListener('click', () => {
-  try {
-    pushProduct();
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-    }
-    downloadExcel();
-    resetForNext();
-  } catch (e) {
-    alert('Error saving data: ' + e.message);
+  pushProduct();
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
   }
+  downloadPackage();
+  resetForNext();
 });
 </script>
 </body>
