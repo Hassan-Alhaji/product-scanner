@@ -28,7 +28,7 @@
       padding: 28px 20px 36px;
     }
     h2 { margin: 0; color: #222; }
-    small.version { display: block; color: #999; font-size: .6rem; margin-top: 8px; }
+    small. { display: block; color: #999; font-size: .6rem; margin-top: 8px; }
     video, #preview {
       width: 100%;
       border-radius: 14px;
@@ -107,7 +107,7 @@
       <button id="startCamera">Start Camera</button>
       <button id="capture" style="display:none">Capture Image</button>
     </div>
-    <small class="version">version-010</small>
+    <small class="">version-011</small>
 
     <div id="productData">
       <p>Description</p><input id="description" type="text" />
@@ -218,7 +218,15 @@ function downloadExcel() {
     alert('No products recorded');
     return;
   }
-  const ws = XLSX.utils.json_to_sheet(products);
+  // Exclude image data to avoid exceeding Excel cell length limit
+  const exportData = products.map(product => ({
+    'Description': product['Description'],
+    'Color': product['Color'],
+    'Size': product['Size'],
+    'Brand': product['Brand'],
+    'Quantity': product['Quantity']
+  }));
+  const ws = XLSX.utils.json_to_sheet(exportData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Products');
   XLSX.writeFile(wb, 'products.xlsx');
