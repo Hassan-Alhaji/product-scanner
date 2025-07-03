@@ -23,6 +23,8 @@
     .quantity-control button{width:40px;height:40px;font-size:1.2rem;padding:0}
     .quantity-control span{font-size:1rem;font-weight:600;width:50px;text-align:center}
   </style>
+
+  <!-- المكتبات -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -38,7 +40,7 @@
       <button id="startCamera">Start Camera</button>
       <button id="capture" style="display:none">Capture Image</button>
     </div>
-    <small>version-016</small>
+    <small>version-017</small>
 
     <div id="productData">
       <p>Description</p><input id="description" type="text" />
@@ -59,6 +61,7 @@
   </div>
 
 <script>
+/* عناصر الصفحة */
 const video         = document.getElementById('video');
 const canvas        = document.getElementById('canvas');
 const preview       = document.getElementById('preview');
@@ -79,6 +82,7 @@ let stream;
 const products = [];
 let quantity = 1;
 
+/* تشغيل الكاميرا */
 async function activateCamera() {
   try {
     if (!stream) {
@@ -93,12 +97,14 @@ async function activateCamera() {
   }
 }
 
+/* تفريغ الحقول */
 function clearForm() {
   descInput.value = colorInput.value = sizeInput.value = brandInput.value = '';
   quantity = 1;
   qtyDisplay.textContent = quantity;
 }
 
+/* إعادة الضبط لمنتج جديد */
 function resetForNext() {
   preview.style.display = 'none';
   productDiv.style.display = 'none';
@@ -111,6 +117,7 @@ function resetForNext() {
 
 startBtn.addEventListener('click', activateCamera);
 
+/* التقاط الصورة */
 captureBtn.addEventListener('click', () => {
   canvas.width  = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -121,22 +128,22 @@ captureBtn.addEventListener('click', () => {
   productDiv.style.display = 'block';
 });
 
+/* التحكم في الكمية */
 decreaseQtyBtn.addEventListener('click', () => {
   if (quantity > 1) {
     quantity--;
     qtyDisplay.textContent = quantity;
   }
 });
-
 increaseQtyBtn.addEventListener('click', () => {
   quantity++;
   qtyDisplay.textContent = quantity;
 });
 
+/* إضافة المنتج إلى المصفوفة */
 function pushProduct() {
   const imgData = preview.src.split(',')[1];
   const imgName = `img_${products.length + 1}.jpg`;
-
   products.push({
     'Description': descInput.value,
     'Color'      : colorInput.value,
@@ -148,45 +155,50 @@ function pushProduct() {
   });
 }
 
+/* بناء مصنف Excel */
 function buildWorkBook() {
   const rowsForExcel = products.map(({ __imgData, ...rest }) => rest);
   const ws = XLSX.utils.json_to_sheet(rowsForExcel);
-
   rowsForExcel.forEach((row, i) => {
     const cell = XLSX.utils.encode_cell({ r: i + 1, c: 5 }); // العمود السادس
     ws[cell] = { t: 's', v: 'عرض', l: { Target: `images/${row.ImageFile}`, Tooltip: 'فتح الصورة' } };
   });
-
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Products');
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 }
 
+/* ❶ دالة مساعدة لإنتاج طابع تاريخ/وقت بصيغة YYYYMMDD_HHMMSS */
+function timestamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+/* تنزيل ملف ZIP */
 function downloadPackage() {
-  if (!products.length) {
-    alert('No products recorded');
-    return;
-  }
+  if (!products.length) { alert('No products recorded'); return; }
 
   const wbData = buildWorkBook();
   const zip = new JSZip();
   zip.file('products.xlsx', wbData);
 
-  products.forEach(p => {
-    zip.file(`images/${p.ImageFile}`, p.__imgData, { base64: true });
-  });
+  products.forEach(p => zip.file(`images/${p.ImageFile}`, p.__imgData, { base64: true }));
 
   zip.generateAsync({ type: 'blob' }).then(blob => {
-    saveAs(blob, 'products_with_images.zip');
+    /* ❷ اسم الملف يحتوي الطابع الزمني */
+    saveAs(blob, `products_${timestamp()}.zip`);
   });
 }
 
+/* حفظ وإضافة منتج آخر */
 saveNextBtn.addEventListener('click', async () => {
   pushProduct();
   resetForNext();
   await activateCamera();
 });
 
+/* حفظ وإنهاء */
 saveFinishBtn.addEventListener('click', () => {
   pushProduct();
   if (stream) {
