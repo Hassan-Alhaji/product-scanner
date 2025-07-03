@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SAMF Product Scanner</title>
+  <title>Smart Product Scanner</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     :root { --primary:#4a90e2; --primary-dark:#3a7ac6; }
@@ -31,7 +31,7 @@
 </head>
 <body>
   <div class="container">
-    <h2>SAMF Product Scanner</h2>
+    <h2>Smart Product Scanner</h2>
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none"></canvas>
     <img id="preview" alt="Image Preview" />
@@ -40,12 +40,174 @@
       <button id="startCamera">Start Camera</button>
       <button id="capture" style="display:none">Capture Image</button>
     </div>
-    <small>version-018</small>
+    <small>version-013</small>
 
-    <!-- البقية كما هي -->
+    <div id="productData">
+      <p>Description</p><input id="description" type="text" />
+      <p>Color</p><input id="color" type="text" />
+      <p>Size</p><input id="size" type="text" />
+      <p>Brand</p><input id="brand" type="text" />
+      <p>Quantity</p>
+      <div class="quantity-control">
+        <button id="decreaseQty">-</button>
+        <span id="quantity">1</span>
+        <button id="increaseQty">+</button>
+      </div>
+      <div class="btn-group">
+        <button id="saveNext">Save and Add Another</button>
+        <button id="saveFinish">Save and Finish</button>
+      </div>
+    </div>
+  </div>
 
 <script>
-// كل الجافاسكربت كما هو في النسخة الأخيرة
+/* عناصر الصفحة */
+const video         = document.getElementById('video');
+const canvas        = document.getElementById('canvas');
+const preview       = document.getElementById('preview');
+const startBtn      = document.getElementById('startCamera');
+const captureBtn    = document.getElementById('capture');
+const productDiv    = document.getElementById('productData');
+const descInput     = document.getElementById('description');
+const colorInput    = document.getElementById('color');
+const sizeInput     = document.getElementById('size');
+const brandInput    = document.getElementById('brand');
+const qtyDisplay    = document.getElementById('quantity');
+const decreaseQtyBtn= document.getElementById('decreaseQty');
+const increaseQtyBtn= document.getElementById('increaseQty');
+const saveNextBtn   = document.getElementById('saveNext');
+const saveFinishBtn = document.getElementById('saveFinish');
+
+let stream;
+const products = [];
+let quantity = 1;
+
+/* تشغيل الكاميرا */
+async function activateCamera() {
+  try {
+    if (!stream) {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = stream;
+    }
+    video.style.display = 'block';
+    captureBtn.style.display = 'inline-block';
+    startBtn.style.display = 'none';
+  } catch (e) {
+    alert('Failed to start camera: ' + e.message);
+  }
+}
+
+/* تفريغ الحقول */
+function clearForm() {
+  descInput.value = colorInput.value = sizeInput.value = brandInput.value = '';
+  quantity = 1;
+  qtyDisplay.textContent = quantity;
+}
+
+/* إعادة الضبط لمنتج جديد */
+function resetForNext() {
+  preview.style.display = 'none';
+  productDiv.style.display = 'none';
+  captureBtn.style.display = 'none';
+  startBtn.style.display = 'inline-block';
+  startBtn.textContent = 'Add New Product';
+  video.style.display = 'none';
+  clearForm();
+}
+
+startBtn.addEventListener('click', activateCamera);
+
+/* التقاط الصورة */
+captureBtn.addEventListener('click', () => {
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  preview.src = canvas.toDataURL('image/jpeg');
+  preview.style.display = 'block';
+  video.style.display = 'none';
+  productDiv.style.display = 'block';
+});
+
+/* التحكم في الكمية */
+decreaseQtyBtn.addEventListener('click', () => {
+  if (quantity > 1) {
+    quantity--;
+    qtyDisplay.textContent = quantity;
+  }
+});
+increaseQtyBtn.addEventListener('click', () => {
+  quantity++;
+  qtyDisplay.textContent = quantity;
+});
+
+/* إضافة المنتج إلى المصفوفة */
+function pushProduct() {
+  const imgData = preview.src.split(',')[1];
+  const imgName = `img_${products.length + 1}.jpg`;
+  products.push({
+    'Description': descInput.value,
+    'Color'      : colorInput.value,
+    'Size'       : sizeInput.value,
+    'Brand'      : brandInput.value,
+    'Quantity'   : quantity,
+    'ImageFile'  : imgName,
+    '__imgData'  : imgData
+  });
+}
+
+/* بناء مصنف Excel */
+function buildWorkBook() {
+  const rowsForExcel = products.map(({ __imgData, ...rest }) => rest);
+  const ws = XLSX.utils.json_to_sheet(rowsForExcel);
+  rowsForExcel.forEach((row, i) => {
+    const cell = XLSX.utils.encode_cell({ r: i + 1, c: 5 }); // العمود السادس
+    ws[cell] = { t: 's', v: 'عرض', l: { Target: `images/${row.ImageFile}`, Tooltip: 'فتح الصورة' } };
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Products');
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+}
+
+/* ❶ دالة مساعدة لإنتاج طابع تاريخ/وقت بصيغة YYYYMMDD_HHMMSS */
+function timestamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+/* تنزيل ملف ZIP */
+function downloadPackage() {
+  if (!products.length) { alert('No products recorded'); return; }
+
+  const wbData = buildWorkBook();
+  const zip = new JSZip();
+  zip.file('products.xlsx', wbData);
+
+  products.forEach(p => zip.file(`images/${p.ImageFile}`, p.__imgData, { base64: true }));
+
+  zip.generateAsync({ type: 'blob' }).then(blob => {
+    /* ❷ اسم الملف يحتوي الطابع الزمني */
+    saveAs(blob, `products_${timestamp()}.zip`);
+  });
+}
+
+/* حفظ وإضافة منتج آخر */
+saveNextBtn.addEventListener('click', async () => {
+  pushProduct();
+  resetForNext();
+  await activateCamera();
+});
+
+/* حفظ وإنهاء */
+saveFinishBtn.addEventListener('click', () => {
+  pushProduct();
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  downloadPackage();
+  resetForNext();
+});
 </script>
 </body>
 </html>
