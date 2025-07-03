@@ -50,11 +50,12 @@
     input { width: 92%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 10px; text-align: center; font-family: inherit; }
     #downloadLink { display: none; margin-top: 20px; color: var(--primary-dark); text-decoration: underline; }
   </style>
-  <script src="./xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="container">
     <h2>تطبيق مسح المنتجات الذكي</h2>
+    <small class="version">Version 01</small>
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none;"></canvas>
     <img id="preview" alt="معاينة الصورة" />
@@ -62,18 +63,18 @@
       <button id="startCamera">تشغيل الكاميرا</button>
       <button id="capture" style="display:none;">التقاط الصورة</button>
     </div>
-    <small class="version">version-007</small>
-
     <div id="productData">
-      <p>الوصف</p><input id="description" type="text" />
-      <p>اللون</p><input id="color" type="text" />
-      <p>الحجم</p><input id="size" type="text" />
-      <p>العلامة التجارية</p><input id="brand" type="text" />
-      <p>الكمية</p><input id="quantity" type="number" min="1" value="1" />
+      <p>الوصف</p><input id="description" type="text" disabled />
+      <p>اللون</p><input id="color" type="text" disabled />
+      <p>الحجم</p><input id="size" type="text" disabled />
+      <p>العلامة التجارية</p><input id="brand" type="text" disabled />
+      <p>الكمية</p><input id="quantity" type="number" min="1" value="1" disabled />
       <div class="btn-group">
-        <button id="confirm">حفظ</button>
+        <button id="saveNext">حفظ وإضافة منتج آخر</button>
+        <button id="saveFinish">حفظ وإنهاء</button>
       </div>
     </div>
+    <a id="downloadLink" href="#">تحميل ملف Excel</a>
   </div>
 
   <script>
@@ -88,17 +89,105 @@
     const sizeInput = document.getElementById('size');
     const brandInput = document.getElementById('brand');
     const quantityInput = document.getElementById('quantity');
-    const confirmBtn = document.getElementById('confirm');
+    const saveNextBtn = document.getElementById('saveNext');
+    const saveFinishBtn = document.getElementById('saveFinish');
+    const downloadLink = document.getElementById('downloadLink');
+    const versionElement = document.querySelector('.version');
 
     let stream;
-    const products = [];
+    let products = [];
+    let version = 1;
+
+    function updateVersion() {
+      version++;
+      versionElement.textContent = `Version ${String(version).padStart(2, '0')}`;
+    }
 
     function resetForNextProduct() {
       preview.style.display = 'none';
       productDataDiv.style.display = 'none';
       captureBtn.style.display = 'none';
       startBtn.style.display = 'inline-block';
-      startBtn.textContent = 'إضافة منتج جديد';
+      descriptionInput.value = '';
+      colorInput.value = '';
+      sizeInput.value = '';
+      brandInput.value = '';
+      quantityInput.value = '1';
+      descriptionInput.disabled = true;
+      colorInput.disabled = true;
+      sizeInput.disabled = true;
+      brandInput.disabled = true;
+      quantityInput.disabled = true;
+    }
+
+    function analyzeImage(ctx) {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < imageData.length; i += 4) {
+        r += imageData[i];
+        g += imageData[i + 1];
+        b += imageData[i + 2];
+      }
+      const pixelCount = imageData.length / 4;
+      r = Math.round(r / pixelCount);
+      g = Math.round(g / pixelCount);
+      b = Math.round(b / pixelCount);
+      const dominantColor = getDominantColor(r, g, b);
+
+      const products = [
+        { type: 'ماوس', brands: ['مايكروسوفت', 'لوجيتيك', 'دل'], size: '3 إنش' },
+        { type: 'لابتوب', brands: ['لينوفو', 'ديل', 'HP'], size: '15 إنش' },
+        { type: 'هاتف', brands: ['سامسونج', 'آيفون', 'شاومي'], size: '6 إنش' }
+      ];
+      const randomProduct = products[Math.floor(Math.random() * products.length)];
+      const brand = randomProduct.brands[Math.floor(Math.random() * randomProduct.brands.length)];
+      descriptionInput.value = randomProduct.type;
+      colorInput.value = dominantColor;
+      sizeInput.value = randomProduct.size;
+      brandInput.value = brand;
+      quantityInput.value = '1';
+      descriptionInput.disabled = false;
+      colorInput.disabled = false;
+      sizeInput.disabled = false;
+      brandInput.disabled = false;
+      quantityInput.disabled = false;
+    }
+
+    function getDominantColor(r, g, b) {
+      if (r > 200 && g < 100 && b < 100) return 'أحمر';
+      if (r < 100 && g > 200 && b < 100) return 'أخضر';
+      if (r < 100 && g < 100 && b > 200) return 'أزرق';
+      if (r > 150 && g > 150 && b > 150) return 'أبيض';
+      if (r < 50 && g < 50 && b < 50) return 'أسود';
+      return 'رصاصي داكن';
+    }
+
+    function saveProduct() {
+      const product = {
+        'الوصف': descriptionInput.value,
+        'اللون': colorInput.value,
+        'الحجم': sizeInput.value,
+        'العلامة التجارية': brandInput.value,
+        'الكمية': quantityInput.value,
+        'الصورة': preview.src
+      };
+      products.push(product);
+      return product;
+    }
+
+    function downloadExcel() {
+      if (products.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(products);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Products');
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/octet-stream' });
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = 'products.xlsx';
+        downloadLink.style.display = 'block';
+      } else {
+        alert('لا توجد منتجات للتحميل.');
+      }
     }
 
     startBtn.addEventListener('click', async () => {
@@ -124,33 +213,26 @@
       preview.style.display = 'block';
       video.style.display = 'none';
       productDataDiv.style.display = 'block';
+      analyzeImage(ctx);
     });
 
-    function downloadExcel() {
-      const ws = XLSX.utils.json_to_sheet(products);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Products');
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/octet-stream' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'products.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    confirmBtn.addEventListener('click', () => {
-      products.push({
-        'الوصف': descriptionInput.value,
-        'اللون': colorInput.value,
-        'الحجم': sizeInput.value,
-        'العلامة التجارية': brandInput.value,
-        'الكمية': quantityInput.value,
-        'الصورة': preview.src
-      });
+    saveNextBtn.addEventListener('click', () => {
+      saveProduct();
+      updateVersion();
       downloadExcel();
       resetForNextProduct();
+    });
+
+    saveFinishBtn.addEventListener('click', () => {
+      saveProduct();
+      updateVersion();
+      downloadExcel();
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      resetForNextProduct();
+      startBtn.textContent = 'إنهاء';
+      startBtn.style.display = 'inline-block';
     });
   </script>
 </body>
