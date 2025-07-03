@@ -20,7 +20,7 @@
     #productData p{margin:8px 0 4px;color:#444;font-weight:600}
     input{width:92%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:10px;text-align:center;font-family:inherit}
   </style>
-  <script src="./xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -33,7 +33,7 @@
       <button id="startCamera">تشغيل الكاميرا</button>
       <button id="capture" style="display:none">التقاط الصورة</button>
     </div>
-    <small class="version">version-010</small>
+    <small class="version">version-011</small>
 
     <div id="productData">
       <p>الوصف</p><input id="description" type="text" />
@@ -49,38 +49,113 @@
   </div>
 
 <script>
-const video=document.getElementById('video');
-const canvas=document.getElementById('canvas');
-const preview=document.getElementById('preview');
-const startBtn=document.getElementById('startCamera');
-const captureBtn=document.getElementById('capture');
-const productDiv=document.getElementById('productData');
-const descInput=document.getElementById('description');
-const colorInput=document.getElementById('color');
-const sizeInput=document.getElementById('size');
-const brandInput=document.getElementById('brand');
-const qtyInput=document.getElementById('quantity');
-const saveNextBtn=document.getElementById('saveNext');
-const saveFinishBtn=document.getElementById('saveFinish');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const preview = document.getElementById('preview');
+const startBtn = document.getElementById('startCamera');
+const captureBtn = document.getElementById('capture');
+const productDiv = document.getElementById('productData');
+const descInput = document.getElementById('description');
+const colorInput = document.getElementById('color');
+const sizeInput = document.getElementById('size');
+const brandInput = document.getElementById('brand');
+const qtyInput = document.getElementById('quantity');
+const saveNextBtn = document.getElementById('saveNext');
+const saveFinishBtn = document.getElementById('saveFinish');
 
-let stream;const products=[];
+let stream;
+const products = [];
 
-async function activateCamera(){ try{ if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}); video.srcObject=stream;} video.style.display='block'; captureBtn.style.display='inline-block'; startBtn.style.display='none'; }catch(e){alert('تعذر تشغيل الكاميرا: '+e.message);} }
+async function activateCamera() {
+  try {
+    if (!stream) {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = stream;
+    }
+    video.style.display = 'block';
+    captureBtn.style.display = 'inline-block';
+    startBtn.style.display = 'none';
+  } catch (e) {
+    alert('تعذر تشغيل الكاميرا: ' + e.message);
+  }
+}
 
-function clearForm(){descInput.value=colorInput.value=sizeInput.value=brandInput.value="";qtyInput.value=1;}
-function resetForNext(){preview.style.display='none';productDiv.style.display='none';captureBtn.style.display='none';startBtn.style.display='inline-block';startBtn.textContent='إضافة منتج جديد';video.style.display='none';clearForm();}
+function clearForm() {
+  descInput.value = colorInput.value = sizeInput.value = brandInput.value = "";
+  qtyInput.value = 1;
+}
 
-startBtn.addEventListener('click',activateCamera);
+function resetForNext() {
+  preview.style.display = 'none';
+  productDiv.style.display = 'none';
+  captureBtn.style.display = 'none';
+  startBtn.style.display = 'inline-block';
+  startBtn.textContent = 'إضافة منتج جديد';
+  video.style.display = 'none';
+  clearForm();
+}
 
-captureBtn.addEventListener('click',()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);preview.src=canvas.toDataURL('image/jpeg');preview.style.display='block';video.style.display='none';productDiv.style.display='block';});
+startBtn.addEventListener('click', activateCamera);
 
-function pushProduct(){products.push({'الوصف':descInput.value,'اللون':colorInput.value,'الحجم':sizeInput.value,'العلامة التجارية':brandInput.value,'الكمية':qtyInput.value,'الصورة':preview.src});}
+captureBtn.addEventListener('click', () => {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  preview.src = canvas.toDataURL('image/jpeg');
+  preview.style.display = 'block';
+  video.style.display = 'none';
+  productDiv.style.display = 'block';
+});
 
-function downloadExcel(){if(products.length===0){alert('لا توجد منتجات مسجلة');return;}const ws=XLSX.utils.json_to_sheet(products);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Products');XLSX.writeFile(wb,'products.xlsx');}
+function pushProduct() {
+  products.push({
+    'الوصف': descInput.value,
+    'اللون': colorInput.value,
+    'الحجم': sizeInput.value,
+    'العلامة التجارية': brandInput.value,
+    'الكمية': qtyInput.value,
+    'الصورة': preview.src
+  });
+}
 
-saveNextBtn.addEventListener('click',async()=>{pushProduct();resetForNext();await activateCamera();});
+function downloadExcel() {
+  if (products.length === 0) {
+    alert('لا توجد منتجات مسجلة');
+    return;
+  }
+  // Prepare data for Excel, excluding the image data
+  const exportData = products.map(product => ({
+    'الوصف': product['الوصف'],
+    'اللون': product['اللون'],
+    'الحجم': product['الحجم'],
+    'العلامة التجارية': product['العلامة التجارية'],
+    'الكمية': product['الكمية']
+  }));
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Products');
+  XLSX.writeFile(wb, 'products.xlsx');
+}
 
-saveFinishBtn.addEventListener('click',()=>{pushProduct();if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}downloadExcel();resetForNext();});
+saveNextBtn.addEventListener('click', async () => {
+  pushProduct();
+  resetForNext();
+  await activateCamera();
+});
+
+saveFinishBtn.addEventListener('click', () => {
+  try {
+    pushProduct();
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    downloadExcel();
+    resetForNext();
+  } catch (e) {
+    alert('حدث خطأ أثناء حفظ البيانات: ' + e.message);
+  }
+});
 </script>
 </body>
 </html>
