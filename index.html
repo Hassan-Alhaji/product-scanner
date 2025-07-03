@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تطبيق مسح المنتجات</title>
+    <title>تطبيق مسح المنتجات الذكي</title>
+    <!-- UI & Layout  -->
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             text-align: center;
             padding: 10px;
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -14,260 +15,280 @@
             margin: 0;
         }
         .container {
-            max-width: 400px;
+            max-width: 480px;
             margin: 0 auto;
-            background: white;
+            background: #ffffff;
             border-radius: 15px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
             padding: 20px;
-            overflow: hidden;
         }
-        #video {
-            width: 80%;
-            max-width: 300px;
-            border-radius: 10px;
-            display: none;
-        }
-        #canvas {
-            display: none;
-        }
+        #video { width: 85%; border-radius: 10px; display: none; }
+        #canvas { display: none; }
         #preview {
-            max-width: 80%;
+            max-width: 85%;
             height: auto;
             border-radius: 10px;
-            margin: 10px 0;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 12px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+            display: none;
         }
         button {
             padding: 10px 20px;
-            margin: 5px;
+            margin: 4px;
             background-color: #4a90e2;
-            color: white;
+            color: #fff;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color 0.25s;
         }
-        button:hover {
-            background-color: #357ab7;
-        }
+        button:hover { background-color: #357ab7; }
+        .btn-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
         #productData {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f9f9f9;
+            margin-top: 18px;
+            padding: 14px;
+            background: #f8f8f8;
             border-radius: 10px;
             display: none;
         }
         input {
-            margin: 5px;
+            margin: 4px 0;
             padding: 8px;
             width: 90%;
             border: 1px solid #ddd;
-            border-radius: 5px;
+            border-radius: 6px;
             box-sizing: border-box;
         }
-        #downloadLink {
+        #downloadLink { display: none; margin-top: 18px; }
+        #loader {
             display: none;
-            margin-top: 20px;
+            margin: 10px auto;
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #4a90e2;
+            width: 36px; height: 36px;
+            animation: spin 0.9s linear infinite;
         }
-        .btn-group {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
+
+    <!-- 3rd‑party libs -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js"></script>
 </head>
 <body>
     <div class="container">
-        <h2 style="color: #333; font-size: 1.5em;">تطبيق مسح المنتجات</h2>
+        <h2 style="color:#333;font-size:1.4em;">تطبيق مسح المنتجات الذكي</h2>
+
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas"></canvas>
-        <img id="preview" alt="معاينة الصورة">
+        <img id="preview" alt="معاينة الصورة" crossorigin="anonymous">
+        <div id="loader"></div>
+
         <div class="btn-group">
             <button id="startCamera">تشغيل الكاميرا</button>
-            <button id="capture" style="display: none;">التقاط الصورة</button>
-            <button id="retake" style="display: none;">إعادة التصوير</button>
+            <button id="capture" style="display:none">التقاط الصورة</button>
+            <button id="retake" style="display:none">إعادة التصوير</button>
         </div>
-        <div id="productData" style="display: none;">
-            <h3 style="color: #444;">بيانات المنتج</h3>
-            <p>الوصف: <input id="description" type="text" disabled></p>
-            <p>اللون: <input id="color" type="text" disabled></p>
-            <p>الحجم: <input id="size" type="text" disabled></p>
-            <p>العلامة التجارية: <input id="brand" type="text" disabled></p>
-            <p>الكمية: <input id="quantity" type="number" min="1" value="1" disabled></p>
+
+        <!-- بيانات المنتج -->
+        <div id="productData">
+            <h3 style="color:#444;">بيانات المنتج المقترحة</h3>
+            <p>الوصف:<input id="description" type="text" disabled></p>
+            <p>اللون:<input id="color" type="text" disabled></p>
+            <p>الحجم:<input id="size" type="text" disabled></p>
+            <p>العلامة التجارية:<input id="brand" type="text" disabled></p>
+            <p>الكمية:<input id="quantity" type="number" min="1" value="1" disabled></p>
             <div class="btn-group">
-                <button id="confirm">لا، حفظ</button>
-                <button id="edit">نعم، تعديل</button>
+                <button id="confirm">حفظ</button>
+                <button id="edit">تعديل</button>
             </div>
         </div>
-        <button id="nextProduct" style="display: none;">المنتج التالي</button>
-        <button id="finish" style="display: none;">إنهاء وحفظ Excel</button>
+
+        <button id="nextProduct" style="display:none">المنتج التالي</button>
+        <button id="finish" style="display:none">إنهاء وحفظ Excel</button>
         <a id="downloadLink" href="#">تحميل ملف Excel</a>
     </div>
 
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const preview = document.getElementById('preview');
-        const startCameraBtn = document.getElementById('startCamera');
-        const captureBtn = document.getElementById('capture');
-        const retakeBtn = document.getElementById('retake');
-        const productDataDiv = document.getElementById('productData');
-        const descriptionInput = document.getElementById('description');
-        const colorInput = document.getElementById('color');
-        const sizeInput = document.getElementById('size');
-        const brandInput = document.getElementById('brand');
-        const quantityInput = document.getElementById('quantity');
-        const confirmBtn = document.getElementById('confirm');
-        const editBtn = document.getElementById('edit');
-        const nextProductBtn = document.getElementById('nextProduct');
-        const finishBtn = document.getElementById('finish');
-        const downloadLink = document.getElementById('downloadLink');
+<script>
+let stream;
+let products = [];
+let modelPromise; // MobileNet model
+const colorThief = new ColorThief();
 
-        let stream;
-        let products = [];
+// DOM refs
+const video          = document.getElementById('video');
+const canvas         = document.getElementById('canvas');
+const preview        = document.getElementById('preview');
+const loader         = document.getElementById('loader');
+const startCameraBtn = document.getElementById('startCamera');
+const captureBtn     = document.getElementById('capture');
+const retakeBtn      = document.getElementById('retake');
+const productDataDiv = document.getElementById('productData');
+const descriptionInp = document.getElementById('description');
+const colorInp       = document.getElementById('color');
+const sizeInp        = document.getElementById('size');
+const brandInp       = document.getElementById('brand');
+const quantityInp    = document.getElementById('quantity');
+const confirmBtn     = document.getElementById('confirm');
+const editBtn        = document.getElementById('edit');
+const nextProductBtn = document.getElementById('nextProduct');
+const finishBtn      = document.getElementById('finish');
+const downloadLink   = document.getElementById('downloadLink');
 
-        // تشغيل الكاميرا
-        startCameraBtn.addEventListener('click', async () => {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = stream;
-                video.style.display = 'block';
-                startCameraBtn.style.display = 'none';
-                captureBtn.style.display = 'inline-block';
-            } catch (err) {
-                alert('خطأ في تشغيل الكاميرا: ' + err.message);
-            }
-        });
+// Load MobileNet only once the page is fully interactive
+window.addEventListener('DOMContentLoaded', ()=>{
+    modelPromise = mobilenet.load();
+});
 
-        // التقاط الصورة
-        captureBtn.addEventListener('click', () => {
-            canvas.width = video.videoWidth * 0.8;
-            canvas.height = video.videoHeight * 0.8;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            preview.src = canvas.toDataURL('image/jpeg');
-            preview.style.display = 'block';
-            video.style.display = 'none';
-            captureBtn.style.display = 'none';
-            retakeBtn.style.display = 'inline-block';
-            analyzeImage(ctx); // تحليل الصورة
-            productDataDiv.style.display = 'block';
-        });
-
-        // إعادة التصوير
-        retakeBtn.addEventListener('click', () => {
-            preview.style.display = 'none';
-            retakeBtn.style.display = 'none';
-            productDataDiv.style.display = 'none';
-            video.style.display = 'block';
-            captureBtn.style.display = 'inline-block';
-        });
-
-        // تحليل الصورة (محاكاة بسيطة بناءً على اللون والشكل)
-        function analyzeImage(ctx) {
-            // استخراج لون رئيسي (محاكاة بسيطة)
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            let r = 0, g = 0, b = 0;
-            for (let i = 0; i < data.length; i += 4) {
-                r += data[i];
-                g += data[i + 1];
-                b += data[i + 2];
-            }
-            const pixelCount = data.length / 4;
-            r = Math.round(r / pixelCount);
-            g = Math.round(g / pixelCount);
-            b = Math.round(b / pixelCount);
-            const dominantColor = getDominantColor(r, g, b);
-
-            // اقتراح المنتج بناءً على الشكل (محاكاة عشوائية مع منطق)
-            const products = [
-                { type: 'ماوس', brands: ['مايكروسوفت', 'لوجيتيك', 'دل'] },
-                { type: 'لابتوب', brands: ['لينوفو', 'ديل', 'HP'] },
-                { type: 'هاتف', brands: ['سامسونج', 'آيفون', 'شاومي'] }
-            ];
-            const randomProduct = products[Math.floor(Math.random() * products.length)];
-            const brand = randomProduct.brands[Math.floor(Math.random() * randomProduct.brands.length)];
-            const size = randomProduct.type === 'ماوس' ? '3 إنش' : randomProduct.type === 'لابتوب' ? '15 إنش' : '6 إنش';
-
-            // تعيين البيانات
-            descriptionInput.value = randomProduct.type;
-            colorInput.value = dominantColor;
-            sizeInput.value = size;
-            brandInput.value = brand;
-            quantityInput.value = 1;
+// --------- Camera controls ---------
+startCameraBtn.addEventListener('click', async()=>{
+    try {
+        if(!stream){
+            stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}});
         }
+        video.srcObject = stream;
+        video.style.display = 'block';
+        startCameraBtn.style.display='none';
+        captureBtn.style.display='inline-block';
+    }catch(e){
+        alert('تعذّر تشغيل الكاميرا: '+e.message);
+    }
+});
 
-        // تحديد اللون المهيمن
-        function getDominantColor(r, g, b) {
-            if (r > 200 && g < 100 && b < 100) return 'أحمر';
-            if (r < 100 && g > 200 && b < 100) return 'أخضر';
-            if (r < 100 && g < 100 && b > 200) return 'أزرق';
-            if (r > 150 && g > 150 && b > 150) return 'أبيض';
-            if (r < 50 && g < 50 && b < 50) return 'أسود';
-            return 'رصاصي داكن';
-        }
+// --------- Capture & analyse ---------
+captureBtn.addEventListener('click', async ()=>{
+    // Draw frame to canvas
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    // Show preview
+    preview.src   = canvas.toDataURL('image/jpeg',0.9);
+    preview.style.display='block';
+    video.style.display='none';
+    captureBtn.style.display='none';
+    retakeBtn.style.display='inline-block';
 
-        // تأكيد البيانات
-        confirmBtn.addEventListener('click', () => {
-            saveProduct();
-            productDataDiv.style.display = 'none';
-            nextProductBtn.style.display = 'inline-block';
-            finishBtn.style.display = 'inline-block';
-            retakeBtn.style.display = 'none';
-        });
+    // Analyse after image is rendered into <img>
+    preview.onload = ()=> analyseImage();
+});
 
-        // تعديل البيانات
-        editBtn.addEventListener('click', () => {
-            descriptionInput.disabled = false;
-            colorInput.disabled = false;
-            sizeInput.disabled = false;
-            brandInput.disabled = false;
-            quantityInput.disabled = false;
-        });
+// --------- Retake ---------
+retakeBtn.addEventListener('click', ()=>{
+    resetForNextShot();
+});
 
-        // الانتقال للمنتج التالي
-        nextProductBtn.addEventListener('click', () => {
-            preview.style.display = 'none';
-            nextProductBtn.style.display = 'none';
-            finishBtn.style.display = 'none';
-            startCameraBtn.style.display = 'inline-block';
-            descriptionInput.disabled = true;
-            colorInput.disabled = true;
-            sizeInput.disabled = true;
-            brandInput.disabled = true;
-            quantityInput.disabled = true;
-        });
+function resetForNextShot(){
+    preview.style.display='none';
+    retakeBtn.style.display='none';
+    productDataDiv.style.display='none';
+    loader.style.display='none';
+    video.style.display='block';
+    captureBtn.style.display='inline-block';
+    descriptionInp.disabled = colorInp.disabled = sizeInp.disabled = brandInp.disabled = quantityInp.disabled = true;
+}
 
-        // إنهاء وحفظ Excel
-        finishBtn.addEventListener('click', () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            const ws = XLSX.utils.json_to_sheet(products);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Products');
-            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-            const blob = new Blob([wbout], { type: 'application/octet-stream' });
-            downloadLink.href = URL.createObjectURL(blob);
-            downloadLink.download = 'products.xlsx';
-            downloadLink.style.display = 'block';
-        });
+// --------- Main analyse logic ---------
+async function analyseImage(){
+    loader.style.display='block';
+    // 1) Object classification via MobileNet
+    const model   = await modelPromise;
+    const tensor  = tf.browser.fromPixels(preview).toFloat();
+    const preds   = await model.classify(tensor, 1); // top‑1
+    const topPred = preds[0] || {className:'منتج', probability:0};
+    tensor.dispose();
 
-        // حفظ بيانات المنتج مع الصورة
-        function saveProduct() {
-            const imageDataUrl = preview.src;
-            products.push({
-                'الوصف': descriptionInput.value,
-                'اللون': colorInput.value,
-                'الحجم': sizeInput.value,
-                'العلامة التجارية': brandInput.value,
-                'الكمية': quantityInput.value,
-                'الصورة': imageDataUrl
-            });
-        }
-    </script>
+    // 2) Dominant color via Color Thief
+    let domColorName = 'غير محدد';
+    try {
+        const [r,g,b] = colorThief.getColor(preview);
+        domColorName = mapRGBToName(r,g,b);
+    }catch{}
+
+    // 3) Heuristic brand & size suggestions (يمكن ربطها بقاعدة بيانات لاحقاً)
+    const heuristics = suggestBrandAndSize(topPred.className);
+
+    // Populate UI
+    descriptionInp.value = translateLabel(topPred.className);
+    colorInp.value       = domColorName;
+    sizeInp.value        = heuristics.size;
+    brandInp.value       = heuristics.brand;
+    quantityInp.value    = 1;
+
+    loader.style.display='none';
+    productDataDiv.style.display='block';
+}
+
+function mapRGBToName(r,g,b){
+    if(r>200 && g<100 && b<100) return 'أحمر';
+    if(r<100 && g>200 && b<100) return 'أخضر';
+    if(r<100 && g<100 && b>200) return 'أزرق';
+    if(r>150 && g>150 && b>150) return 'أبيض';
+    if(r<50  && g<50  && b<50)  return 'أسود';
+    return 'متعدد الألوان';
+}
+
+function translateLabel(label){
+    const map={
+        'laptop':'لابتوب','notebook':'دفتر','cell phone':'هاتف','mouse':'ماوس','keyboard':'كيبورد','file':'ملف','binder':'ملف مستندات','book':'كتاب','bottle':'زجاجة','cup':'كوب','printer':'طابعة'
+    };
+    return map[label.toLowerCase()] || label;
+}
+
+function suggestBrandAndSize(label){
+    label = label.toLowerCase();
+    if(label.includes('laptop'))  return {brand:'ديل', size:'15 إنش'};
+    if(label.includes('mouse'))   return {brand:'لوجيتيك', size:'3 إنش'};
+    if(label.includes('cell'))    return {brand:'سامسونج', size:'6 إنش'};
+    if(label.includes('file')||label.includes('binder')) return {brand:'روكو', size:'A4'};
+    return {brand:'غير معروف', size:'متوسط'};
+}
+
+// --------- Confirm / Edit ---------
+confirmBtn.addEventListener('click', ()=>{
+    saveProduct();
+    productDataDiv.style.display='none';
+    nextProductBtn.style.display='inline-block';
+    finishBtn.style.display='inline-block';
+    retakeBtn.style.display='none';
+});
+
+editBtn.addEventListener('click', ()=>{
+    descriptionInp.disabled = colorInp.disabled = sizeInp.disabled = brandInp.disabled = quantityInp.disabled = false;
+});
+
+// --------- Navigation ---------
+nextProductBtn.addEventListener('click', ()=>{
+    resetForNextShot();
+    nextProductBtn.style.display='none';
+    finishBtn.style.display='none';
+});
+
+finishBtn.addEventListener('click', ()=>{
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); }
+    const ws = XLSX.utils.json_to_sheet(products);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Products');
+    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const blob = new Blob([wbout], {type:'application/octet-stream'});
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = 'products.xlsx';
+    downloadLink.style.display='block';
+});
+
+function saveProduct(){
+    products.push({
+        'الوصف'         : descriptionInp.value,
+        'اللون'         : colorInp.value,
+        'الحجم'         : sizeInp.value,
+        'العلامة التجارية': brandInp.value,
+        'الكمية'        : quantityInp.value,
+        'الصورة'        : preview.src
+    });
+}
+</script>
 </body>
 </html>
