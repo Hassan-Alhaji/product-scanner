@@ -19,15 +19,6 @@
     #productData{display:none;background:#f4f9ff;padding:16px;border-radius:14px}
     #productData p{margin:8px 0 4px;color:#444;font-weight:600}
     input{width:92%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;margin-bottom:10px;text-align:center;font-family:inherit}
-    .quantity-control{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px}
-    .quantity-control input {
-      width: 60px;
-      text-align: center;
-      font-size: 1rem;
-      font-weight: 600;
-      padding: 6px;
-    }
-    .quantity-control button{width:40px;height:40px;font-size:1.2rem;padding:0}
   </style>
 
   <!-- المكتبات -->
@@ -46,7 +37,7 @@
       <button id="startCamera">Start Camera</button>
       <button id="capture" style="display:none">Capture Image</button>
     </div>
-    <small>version-018</small>
+    <small>version-019</small>
 
     <div id="productData">
       <p>Description</p><input id="description" type="text" />
@@ -54,11 +45,7 @@
       <p>Size</p><input id="size" type="text" />
       <p>Brand</p><input id="brand" type="text" />
       <p>Quantity</p>
-      <div class="quantity-control">
-        <button id="decreaseQty">-</button>
-        <input id="quantityInput" type="number" min="1" value="1" />
-        <button id="increaseQty">+</button>
-      </div>
+      <input id="quantity" type="number" min="1" value="1" />
       <div class="btn-group">
         <button id="saveNext">Save and Add Another</button>
         <button id="saveFinish">Save and Finish</button>
@@ -77,18 +64,17 @@ const descInput     = document.getElementById('description');
 const colorInput    = document.getElementById('color');
 const sizeInput     = document.getElementById('size');
 const brandInput    = document.getElementById('brand');
-const quantityInput = document.getElementById('quantityInput');
-const decreaseQtyBtn= document.getElementById('decreaseQty');
-const increaseQtyBtn= document.getElementById('increaseQty');
+const qtyInput      = document.getElementById('quantity');
 const saveNextBtn   = document.getElementById('saveNext');
 const saveFinishBtn = document.getElementById('saveFinish');
 
 let stream;
 const products = [];
-let quantity = 1;
 
+/* معرف فريد لكل جلسة عامل */
 const sessionID = `worker_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
+/* توليد طابع زمني */
 function timestamp() {
   const d = new Date();
   const pad = n => String(n).padStart(2,'0');
@@ -111,7 +97,7 @@ async function activateCamera() {
 
 function clearForm() {
   descInput.value = colorInput.value = sizeInput.value = brandInput.value = '';
-  quantityInput.value = 1;
+  qtyInput.value = '1';
 }
 
 function resetForNext() {
@@ -136,38 +122,37 @@ captureBtn.addEventListener('click', () => {
   productDiv.style.display = 'block';
 });
 
-decreaseQtyBtn.addEventListener('click', () => {
-  let current = parseInt(quantityInput.value) || 1;
-  if (current > 1) quantityInput.value = --current;
-});
-increaseQtyBtn.addEventListener('click', () => {
-  let current = parseInt(quantityInput.value) || 1;
-  quantityInput.value = ++current;
+// Ensure only numbers are entered in quantity input
+qtyInput.addEventListener('input', () => {
+  qtyInput.value = qtyInput.value.replace(/[^0-9]/g, '');
+  if (qtyInput.value === '' || parseInt(qtyInput.value) < 1) {
+    qtyInput.value = '1';
+  }
 });
 
+/* حفظ المنتج */
 function pushProduct() {
   const imgData = preview.src.split(',')[1];
   const imgName = `${sessionID}_img_${products.length + 1}.jpg`;
-
-  quantity = parseInt(quantityInput.value) || 1;
 
   products.push({
     'Description': descInput.value,
     'Color'      : colorInput.value,
     'Size'       : sizeInput.value,
     'Brand'      : brandInput.value,
-    'Quantity'   : quantity,
+    'Quantity'   : parseInt(qtyInput.value),
     'ImageFile'  : imgName,
     '__imgData'  : imgData
   });
 }
 
+/* إنشاء Excel */
 function buildWorkBook() {
   const rowsForExcel = products.map(({ __imgData, ...rest }) => rest);
   const ws = XLSX.utils.json_to_sheet(rowsForExcel);
 
   rowsForExcel.forEach((row, i) => {
-    const cell = XLSX.utils.encode_cell({ r: i + 1, c: 5 });
+    const cell = XLSX.utils.encode_cell({ r: i + 1, c: 5 }); // العمود السادس
     ws[cell] = { t: 's', v: 'عرض', l: { Target: `images/${row.ImageFile}`, Tooltip: 'فتح الصورة' } };
   });
 
@@ -176,6 +161,7 @@ function buildWorkBook() {
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 }
 
+/* تحميل ملف ZIP */
 function downloadPackage() {
   if (!products.length) { alert('No products recorded'); return; }
 
@@ -191,12 +177,14 @@ function downloadPackage() {
   });
 }
 
+/* حفظ وإضافة */
 saveNextBtn.addEventListener('click', async () => {
   pushProduct();
   resetForNext();
   await activateCamera();
 });
 
+/* حفظ وإنهاء */
 saveFinishBtn.addEventListener('click', () => {
   pushProduct();
   if (stream) {
